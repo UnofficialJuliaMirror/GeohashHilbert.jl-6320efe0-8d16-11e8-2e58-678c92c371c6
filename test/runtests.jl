@@ -3,6 +3,7 @@ using Random
 using Test
 
 const GHH = GeohashHilbert
+const ALL_BITS_PER_CHAR = [2, 4, 6]
 
 randlat() = -90 + 180 * rand()
 randlon() = -180 + 360 * rand()
@@ -11,11 +12,11 @@ randgeohash(n, bits_per_char = 2) = String(rand('0':'3', n))
 
 # converting between int/string and back should reproduce starting values
 function test_int_str_conversion()
-    for _ in 1:20
-        x = rand(0,5000)
+    for _ in 1:200 # 200 independent tests
+        x = rand(0:50_000)
         bpc = rand([2,4,6])
-        base = 2^bits_per_char
-        chars_needed = floor(Int, 1 + log(base, x))
+        base = 2^bpc
+        chars_needed = ceil(Int, log(base, x + 1))
         nchar = rand(chars_needed : (chars_needed + 5))
         x_str = GHH.int_to_str(x, nchar, bpc)
         @test length(x_str) == nchar
@@ -28,7 +29,7 @@ end
 # converting between xy and integer should be lossless
 function test_int_xy_conversion()
     for _ in 1:20
-        k = rand(2:20)
+        k = rand(2:20) # granularity of grid over lat-lon space
         n = 2^k
         int = rand(0:(n^2 - 1))
         x, y = GHH.int_to_xy(int, n)
@@ -60,7 +61,7 @@ end
 # and corners of cells.
 function test_match_python_encode(bits_per_char = 2)
     # each item is (lon, lat, prec, python encode at 2 bits_per_char)
-    # this covers a variety of nasty edge cases, boundaries between cells, 
+    # this covers a variety of nasty edge cases, boundaries between cells,
     # and points in each quadrant of the world (wrt equator and prime meridian)
     llp_g = [
         [90, 47, 2, "22"],
@@ -82,6 +83,10 @@ function test_match_python_encode(bits_per_char = 2)
 end
 
 Random.seed!(47)
-test_cell_centers_encode_decode()
+test_int_str_conversion()
+test_int_xy_conversion()
+for bpc in ALL_BITS_PER_CHAR
+    test_cell_centers_encode_decode(bpc)
+end
 test_match_python_encode()
 println("Great job!")

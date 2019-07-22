@@ -1,6 +1,6 @@
 module GeohashHilbert
 
-"sing Base.ImmutableDict in place of Dict for `ORDERING` and 
+"Using Base.ImmutableDict in place of Dict for `ORDERING` and
 `HILBERT_RECURSION` seems to provide a ~2x performance gain. Strangely,
 there's not a simple constructor taking a Dict to an ImmutableDict. So,
 this function recursively converts `Dict`s to `ImmutableDict`s."
@@ -44,10 +44,55 @@ const HILBERT_RECURSION = dict_to_idict(Dict(
 # e.g. in a UDown oriented curve, the lower left quadrant is a ULeft oriented curve
 
 
-# equivalent to converting x to base 4 and then a string
-"Convert an integer to a string of specified length and bits per character encoding."
-int_to_str(x::Int, nchar, bits_per_char = 2) = string(x; base = 2^bits_per_char, pad = nchar)
-str_to_int(s::AbstractString, bits_per_char = 2) = parse(Int, s, base = 2^bits_per_char)
+# the 64 digits we use for 6 bits_per_char encodings
+const BASE64_CHARS = "0123456789@ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz"
+const BASE64_MAP = Dict(BASE64_CHARS[i] => i - 1 for i in 1:length(BASE64_CHARS))
+
+"Encode an integer using 6 bits per character; return a string of the specified number of
+characters. `nchar` must be large enough to encode `x`: ``x < 64^nchar``."
+function base64_encode_int(x, nchar, charlist = BASE64_CHARS)
+    chars = fill('0', nchar)
+    for i in nchar : -1 : 1
+        x, rem = divrem(x, 64)
+        chars[i] = charlist[rem + 1]
+    end
+    return String(chars)
+end
+
+"Decode a base 64 encoded string back into an integer. This function will error if
+any of the characters in the passed string are not in `BASE64_CHARS`."
+function base64_decode_string(s, charmap = BASE64_MAP)
+	# walk the string from right to left, i.e. least to most significant digit
+	# note: this will throw an exception on non-ASCII strings! But, avoiding
+	# something like eachindex avoids allocation.
+	cursum = 0
+	mult = 1
+	for i in length(s) : -1 : 1
+		cursum += mult * charmap[s[i]]
+		mult *= 64
+	end
+	return cursum
+end
+
+
+"Convert an integer to a string of specified (minimumn) length and bits per character
+encoding. For 2 and 4 bits per character, this is equivalent to converting to a string at
+base `2^bits_per_char`. For 6 bits per character, a different method is required since
+Julia's built in `string` doesn't support base 64 encoding."
+function int_to_str(x::Int, nchar, bits_per_char = 2)
+	bits_per_char == 2 && return string(x; base = 4, pad = nchar)
+	bits_per_char == 4 && return string(x; base = 16, pad = nchar)
+	bits_per_char == 6 && return base64_encode_int(x, nchar)
+	error("bits_per_char must be in [2,4,6]")
+end
+"Parse a string encoded via `int_to_str` into an integer. The `bits_per_char` used to
+encode the string must be specified."
+function str_to_int(s::AbstractString, bits_per_char = 2)
+	bits_per_char == 2 && return parse(Int, s, base = 4)
+	bits_per_char == 4 && return parse(Int, s, base = 16)
+	bits_per_char == 6 && return base64_decode_string(s)
+	error("bits_per_char must be in [2,4,6]")
+end
 
 """
 Encode a lon-lat as a geohash. Higher `precision` leads to a finer grained encoding;
@@ -55,8 +100,6 @@ in particular the unwrapped lon-lat plane is divided into `4^precision` squares 
 Thus the number of bits used is `2 * precision`.
 """
 function encode(lon, lat, precision, bits_per_char = 2)
-    # only supported for now
-    @assert bits_per_char == 2
 	@assert -90 <= lat <= 90
 	@assert -180 <= lon <= 180
 	encode_bits = precision * bits_per_char
@@ -99,7 +142,7 @@ integers in `[1...n]`.
 function xy_to_int(x::Int, y::Int, n::Int)
 	@assert 1 <= x <= n
 	@assert 1 <= y <= n
-	
+
 	cur_orientation = UDown
 	cur_quadrant_size = n ÷ 2
     # steps is steps along the curve, starting with the lower left most point
@@ -108,7 +151,7 @@ function xy_to_int(x::Int, y::Int, n::Int)
     # the goal of matching the Python package as closely as possible, this 0-based
     # ends up simplifying the overall code.
 	steps = 0
-	
+
 	while cur_quadrant_size > 0
 		quadrant = get_quadrant(x, y, cur_quadrant_size)
 		n_previous_quadrants = ORDERING[cur_orientation][quadrant] - 1
@@ -124,13 +167,13 @@ function xy_to_int(x::Int, y::Int, n::Int)
 		cur_orientation = HILBERT_RECURSION[cur_orientation][quadrant]
 		cur_quadrant_size ÷= 2
 	end
-	
+
 	return steps
 end
 
 """
 Convert an integer `t` representing position along the Hilbert curve filling
-a `n` by `n` grid (as always, with upside-down U shape, starting in the lower 
+a `n` by `n` grid (as always, with upside-down U shape, starting in the lower
 left) to `x,y` coordinates in `[1...n]` by `[1...n]` with `(1,1)` representing
 the lower left.
 """
@@ -138,12 +181,12 @@ function int_to_xy(t::Int, n::Int)
 	if !(1 <= t <= n * n)
         error("t passed to int_to_xy must be in [1,n^2]. Got (t,n) = $((t,n))")
     end
-	
+
 	cur_orientation = UDown
 	cur_quadrant_size = n ÷ 2
 	x = 1
 	y = 1
-	
+
 	while cur_quadrant_size > 0
 		pts_per_quadrant = cur_quadrant_size^2
 		quadrant_index = 1
@@ -165,7 +208,7 @@ function int_to_xy(t::Int, n::Int)
 		cur_orientation = HILBERT_RECURSION[cur_orientation][quadrant]
 		cur_quadrant_size ÷= 2
 	end
-	
+
 	return x, y
 end
 
@@ -182,7 +225,7 @@ function find_quadrant(quad_index, orientation)::Quadrant
 	end
 	error("Couldn't find position of quad index $(quad_index) for orientation $(orientation)")
 end
-	
+
 @inline function get_quadrant(x, y, quad_size)
 	x <= quad_size && y <= quad_size && return LowerLeft
 	x > quad_size && y <= quad_size && return LowerRight
@@ -193,8 +236,6 @@ end
 "Given a `geohash` string at a specified `bits_per_char`, return the coordinates of the
 corresponding geohash cell's center as a tuple `(lon, lat)`."
 function decode(geohash, bits_per_char = 2)
-    # currently only 2 bits per char supported
-    @assert bits_per_char == 2
     precision = length(geohash)
     curve_spot = str_to_int(geohash)
     n = 2^(precision * bits_per_char ÷ 2)
@@ -222,21 +263,21 @@ end
 function neighbours(geohash, bits_per_char)
     lon, lat, lon_err, lat_err = decode_exactly(geohash, bits_per_char)
     prec = length(geohash)
-    
+
     north = lat + 2 * lat_err
     south = lat - 2 * lat_err
     east = lon + 2 * lon_err
     west = lon - 2 * lon_err
-    
+
     # wrap around the lon = +/- 180 line
     east > 180 && (east -= 360)
     west < -180 && (west += 360)
-    
+
     neigh_dict = Dict{String, String}(
         "east" => encode(east, lat, prec, bits_per_char),
         "west" => encode(west, lat, prec, bits_per_char)
     )
-    
+
     if north <= 90 # input cell isn't already at the north pole
         neigh_dict = merge(neigh_dict, Dict{String, String}(
             "north-east" => encode(east, north, prec, bits_per_char),
@@ -244,7 +285,7 @@ function neighbours(geohash, bits_per_char)
             "north-west" => encode(west, north, prec, bits_per_char)
         ))
     end
-    
+
     if south >= -90 # input cell isn't already at the south pole
         neigh_dict = merge(neigh_dict, Dict{String, String}(
             "south-west" => encode(west, south, prec, bits_per_char),
@@ -252,15 +293,15 @@ function neighbours(geohash, bits_per_char)
             "south-east" => encode(east, south, prec, bits_per_char)
         ))
     end
-    
+
     return neigh_dict
-    
+
 end
 
 function rectangle(geohash, bits_per_char)
 
     lon, lat, lon_err, lat_err = decode_exactly(geohash, bits_per_char)
-    
+
     return Dict{Any, Any}(
         "type" => "Feature",
         "properties" => Dict{Any, Any}(
