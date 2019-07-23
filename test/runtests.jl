@@ -28,14 +28,18 @@ end
 
 # converting between xy and integer should be lossless
 function test_int_xy_conversion()
-    for _ in 1:20
-        k = rand(2:20) # granularity of grid over lat-lon space
+    # many independent random tests of normal behavior
+    for _ in 1:1000
+        k = rand(2:20)
         n = 2^k
         int = rand(0:(n^2 - 1))
         x, y = GHH.int_to_xy(int, n)
         int_prime = GHH.xy_to_int(x, y, n)
         @test int_prime == int
     end
+    # test illegal input
+    @test_throws DomainError GHH.int_to_xy(-1, 8) # t too small
+    @test_throws DomainError GHH.int_to_xy(100, 8) # t too large
     return nothing
 end
 

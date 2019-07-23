@@ -135,9 +135,11 @@ function xy_to_lonlat(x, y, n)
 end
 
 """
-Convert coordinates `(x,y)` to an integer representing location along the Hilbert
-curve filling a `n` by `n` grid. `n` must be a power of 2 and `x,y` should be
-integers in `[1...n]`.
+Convert coordinates `(x,y)` to an integer representing steps along the Hilbert curve filling
+a `n` by `n` grid. `n` must be a power of 2 and `x,y` should be integers in `[1...n]`. The
+returned integer will be between 0 (no steps along the curve, i.e. the lower-left grid cell)
+and n^2 - 1 (the last square along the Hilbert curve, namely the lower-right grid cell)
+inclusive.
 """
 function xy_to_int(x::Int, y::Int, n::Int)
 	@assert 1 <= x <= n
@@ -172,14 +174,13 @@ function xy_to_int(x::Int, y::Int, n::Int)
 end
 
 """
-Convert an integer `t` representing position along the Hilbert curve filling
-a `n` by `n` grid (as always, with upside-down U shape, starting in the lower
-left) to `x,y` coordinates in `[1...n]` by `[1...n]` with `(1,1)` representing
-the lower left.
+Convert an integer `t` to `x,y` coordinates in `[1...n]` by `[1...n]` with `(1,1)`
+representing the lower left. `t` represents steps from the first (lower left) square of the
+grid, so legal values of `t` are in [0,n^2).
 """
 function int_to_xy(t::Int, n::Int)
-	if !(1 <= t <= n * n)
-        error("t passed to int_to_xy must be in [1,n^2]. Got (t,n) = $((t,n))")
+	if !(0 <= t < n^2)
+        throw(DomainError((t,n), "t passed to int_to_xy must be in [0, n^2 - 1]."))
     end
 
 	cur_orientation = UDown
