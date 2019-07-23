@@ -29,17 +29,17 @@ end
 @enum HilbertOrientation UUp ULeft UDown URight # U ] Π [
 @enum Quadrant LowerLeft LowerRight UpperLeft UpperRight
 const ORDERING = dict_to_idict(Dict(
-	UUp => Dict(UpperRight => 1, LowerRight => 2, LowerLeft => 3, UpperLeft => 4),
-	ULeft => Dict(LowerLeft => 1, LowerRight => 2, UpperRight => 3, UpperLeft => 4),
-	UDown => Dict(LowerLeft => 1, UpperLeft => 2, UpperRight => 3, LowerRight => 4),
-	URight => Dict(UpperRight => 1, UpperLeft => 2, LowerLeft => 3, LowerRight => 4)
+    UUp => Dict(UpperRight => 1, LowerRight => 2, LowerLeft => 3, UpperLeft => 4),
+    ULeft => Dict(LowerLeft => 1, LowerRight => 2, UpperRight => 3, UpperLeft => 4),
+    UDown => Dict(LowerLeft => 1, UpperLeft => 2, UpperRight => 3, LowerRight => 4),
+    URight => Dict(UpperRight => 1, UpperLeft => 2, LowerLeft => 3, LowerRight => 4)
 ))
 # define the recursive nature of the Hilbert curve
 const HILBERT_RECURSION = dict_to_idict(Dict(
-	UUp => Dict(UpperRight => URight, LowerRight => UUp, LowerLeft => UUp, UpperLeft => ULeft),
-	ULeft => Dict(LowerLeft => UDown, LowerRight => ULeft, UpperRight => ULeft, UpperLeft => UUp),
-	UDown => Dict(LowerLeft => ULeft, UpperLeft => UDown, UpperRight => UDown, LowerRight => URight),
-	URight => Dict(UpperRight => UUp, UpperLeft => URight, LowerLeft => URight, LowerRight => UDown)
+    UUp => Dict(UpperRight => URight, LowerRight => UUp, LowerLeft => UUp, UpperLeft => ULeft),
+    ULeft => Dict(LowerLeft => UDown, LowerRight => ULeft, UpperRight => ULeft, UpperLeft => UUp),
+    UDown => Dict(LowerLeft => ULeft, UpperLeft => UDown, UpperRight => UDown, LowerRight => URight),
+    URight => Dict(UpperRight => UUp, UpperLeft => URight, LowerLeft => URight, LowerRight => UDown)
 ))
 # e.g. in a UDown oriented curve, the lower left quadrant is a ULeft oriented curve
 
@@ -62,36 +62,36 @@ end
 "Decode a base 64 encoded string back into an integer. This function will error if
 any of the characters in the passed string are not in `BASE64_CHARS`."
 function base64_decode_string(s, charmap = BASE64_MAP)
-	# walk the string from right to left, i.e. least to most significant digit
-	# note: this will throw an exception on non-ASCII strings! But, avoiding
-	# something like eachindex avoids allocation.
-	cursum = 0
-	mult = 1
-	for i in length(s) : -1 : 1
-		cursum += mult * charmap[s[i]]
-		mult *= 64
-	end
-	return cursum
+    # walk the string from right to left, i.e. least to most significant digit
+    # note: this will throw an exception on non-ASCII strings! But, avoiding
+    # something like eachindex avoids allocation.
+    cursum = 0
+    mult = 1
+    for i in length(s) : -1 : 1
+        cursum += mult * charmap[s[i]]
+        mult *= 64
+    end
+    return cursum
 end
-
 
 "Convert an integer to a string of specified (minimumn) length and bits per character
 encoding. For 2 and 4 bits per character, this is equivalent to converting to a string at
 base `2^bits_per_char`. For 6 bits per character, a different method is required since
 Julia's built in `string` doesn't support base 64 encoding."
 function int_to_str(x::Int, nchar, bits_per_char = 2)
-	bits_per_char == 2 && return string(x; base = 4, pad = nchar)
-	bits_per_char == 4 && return string(x; base = 16, pad = nchar)
-	bits_per_char == 6 && return base64_encode_int(x, nchar)
-	error("bits_per_char must be in [2,4,6]")
+    bits_per_char == 2 && return string(x; base = 4, pad = nchar)
+    bits_per_char == 4 && return string(x; base = 16, pad = nchar)
+    bits_per_char == 6 && return base64_encode_int(x, nchar)
+    error("bits_per_char must be in [2,4,6]")
 end
+
 "Parse a string encoded via `int_to_str` into an integer. The `bits_per_char` used to
 encode the string must be specified."
 function str_to_int(s::AbstractString, bits_per_char = 2)
-	bits_per_char == 2 && return parse(Int, s, base = 4)
-	bits_per_char == 4 && return parse(Int, s, base = 16)
-	bits_per_char == 6 && return base64_decode_string(s)
-	error("bits_per_char must be in [2,4,6]")
+    bits_per_char == 2 && return parse(Int, s, base = 4)
+    bits_per_char == 4 && return parse(Int, s, base = 16)
+    bits_per_char == 6 && return base64_decode_string(s)
+    error("bits_per_char must be in [2,4,6]")
 end
 
 """
@@ -100,13 +100,13 @@ in particular the unwrapped lon-lat plane is divided into `4^precision` squares 
 Thus the number of bits used is `2 * precision`.
 """
 function encode(lon, lat, precision, bits_per_char = 2)
-	@assert -90 <= lat <= 90
-	@assert -180 <= lon <= 180
-	encode_bits = precision * bits_per_char
-	n = 2^(encode_bits ÷ 2)
-	x, y = lonlat_to_xy(lon, lat, n)
-	curve_spot = xy_to_int(x, y, n)
-	return int_to_str(curve_spot, precision)
+    @assert -90 <= lat <= 90
+    @assert -180 <= lon <= 180
+    encode_bits = precision * bits_per_char
+    n = 2^(encode_bits ÷ 2)
+    x, y = lonlat_to_xy(lon, lat, n)
+    curve_spot = xy_to_int(x, y, n)
+    return int_to_str(curve_spot, precision)
 end
 
 """
@@ -114,11 +114,11 @@ Convert lon-lat coordinates to a (rounded) `x,y` integer point in the
 `n` by `n` grid covering lon-lat space. Returned `x,y` are in [1...n].
 """
 function lonlat_to_xy(lon, lat, n)
-	# awkward 1+floor rounding to keep xy mapping for lon-lat exactly on
-	# cell boundaries consistent with python package GeohashHilbert
-	x = min(n, 1 + floor(Int, (lon + 180) / 360 * n))
-	y = min(n, 1 + floor(Int, (lat + 90) / 180 * n))
-	return x, y
+    # awkward 1+floor rounding to keep xy mapping for lon-lat exactly on
+    # cell boundaries consistent with python package GeohashHilbert
+    x = min(n, 1 + floor(Int, (lon + 180) / 360 * n))
+    y = min(n, 1 + floor(Int, (lat + 90) / 180 * n))
+    return x, y
 end
 
 """
@@ -142,35 +142,35 @@ and n^2 - 1 (the last square along the Hilbert curve, namely the lower-right gri
 inclusive.
 """
 function xy_to_int(x::Int, y::Int, n::Int)
-	@assert 1 <= x <= n
-	@assert 1 <= y <= n
+    @assert 1 <= x <= n
+    @assert 1 <= y <= n
 
-	cur_orientation = UDown
-	cur_quadrant_size = n ÷ 2
+    cur_orientation = UDown
+    cur_quadrant_size = n ÷ 2
     # steps is steps along the curve, starting with the lower left most point
     # being 0 steps along the curve
     # it might be more natural to use 1-based Julian-style indexing, but given
     # the goal of matching the Python package as closely as possible, this 0-based
     # ends up simplifying the overall code.
-	steps = 0
+    steps = 0
 
-	while cur_quadrant_size > 0
-		quadrant = get_quadrant(x, y, cur_quadrant_size)
-		n_previous_quadrants = ORDERING[cur_orientation][quadrant] - 1
-		# steps to get to this quadrant
-		steps += n_previous_quadrants * cur_quadrant_size^2
-		# now iterate within the quadrant
-		if x > cur_quadrant_size
-			x -= cur_quadrant_size
-		end
-		if y > cur_quadrant_size
-			y -= cur_quadrant_size
-		end
-		cur_orientation = HILBERT_RECURSION[cur_orientation][quadrant]
-		cur_quadrant_size ÷= 2
-	end
+    while cur_quadrant_size > 0
+        quadrant = get_quadrant(x, y, cur_quadrant_size)
+        n_previous_quadrants = ORDERING[cur_orientation][quadrant] - 1
+        # steps to get to this quadrant
+        steps += n_previous_quadrants * cur_quadrant_size^2
+        # now iterate within the quadrant
+        if x > cur_quadrant_size
+            x -= cur_quadrant_size
+        end
+        if y > cur_quadrant_size
+            y -= cur_quadrant_size
+        end
+        cur_orientation = HILBERT_RECURSION[cur_orientation][quadrant]
+        cur_quadrant_size ÷= 2
+    end
 
-	return steps
+    return steps
 end
 
 """
@@ -179,38 +179,38 @@ representing the lower left. `t` represents steps from the first (lower left) sq
 grid, so legal values of `t` are in [0,n^2).
 """
 function int_to_xy(t::Int, n::Int)
-	if !(0 <= t < n^2)
+    if !(0 <= t < n^2)
         throw(DomainError((t,n), "t passed to int_to_xy must be in [0, n^2 - 1]."))
     end
 
-	cur_orientation = UDown
-	cur_quadrant_size = n ÷ 2
-	x = 1
-	y = 1
+    cur_orientation = UDown
+    cur_quadrant_size = n ÷ 2
+    x = 1
+    y = 1
 
-	while cur_quadrant_size > 0
-		pts_per_quadrant = cur_quadrant_size^2
-		quadrant_index = 1
+    while cur_quadrant_size > 0
+        pts_per_quadrant = cur_quadrant_size^2
+        quadrant_index = 1
         # >= check because t is steps from the first xy square
         # so if eg t is exactly pts_per_quadrant, then the xy to return is
         # the first point of the second quadrant, not the last point of
         # the first quadrant.
-		while t >= pts_per_quadrant
-			quadrant_index += 1
-			t -= pts_per_quadrant
-		end
-		quadrant = find_quadrant(quadrant_index, cur_orientation)
-		if quadrant == UpperLeft || quadrant == UpperRight
-			y += cur_quadrant_size
-		end
-		if quadrant == LowerRight || quadrant == UpperRight
-			x += cur_quadrant_size
-		end
-		cur_orientation = HILBERT_RECURSION[cur_orientation][quadrant]
-		cur_quadrant_size ÷= 2
-	end
+        while t >= pts_per_quadrant
+            quadrant_index += 1
+            t -= pts_per_quadrant
+        end
+        quadrant = find_quadrant(quadrant_index, cur_orientation)
+        if quadrant == UpperLeft || quadrant == UpperRight
+            y += cur_quadrant_size
+        end
+        if quadrant == LowerRight || quadrant == UpperRight
+            x += cur_quadrant_size
+        end
+        cur_orientation = HILBERT_RECURSION[cur_orientation][quadrant]
+        cur_quadrant_size ÷= 2
+    end
 
-	return x, y
+    return x, y
 end
 
 # for a given quadrant index (1-4) and orientation,
@@ -218,20 +218,20 @@ end
 # there's probably a small absolute but large relative efficiency gain
 # to be had by making a REVERSE_ORDERING dict or using a different data structure
 function find_quadrant(quad_index, orientation)::Quadrant
-	@assert 1 <= quad_index <= 4
-	for quad in instances(Quadrant)
-		if ORDERING[orientation][quad] == quad_index
-			return quad
-		end
-	end
-	error("Couldn't find position of quad index $(quad_index) for orientation $(orientation)")
+    @assert 1 <= quad_index <= 4
+    for quad in instances(Quadrant)
+        if ORDERING[orientation][quad] == quad_index
+            return quad
+        end
+    end
+    error("Couldn't find position of quad index $(quad_index) for orientation $(orientation)")
 end
 
 @inline function get_quadrant(x, y, quad_size)
-	x <= quad_size && y <= quad_size && return LowerLeft
-	x > quad_size && y <= quad_size && return LowerRight
-	x <= quad_size && y > quad_size && return UpperLeft
-	return UpperRight
+    x <= quad_size && y <= quad_size && return LowerLeft
+    x > quad_size && y <= quad_size && return LowerRight
+    x <= quad_size && y > quad_size && return UpperLeft
+    return UpperRight
 end
 
 "Given a `geohash` string at a specified `bits_per_char`, return the coordinates of the
