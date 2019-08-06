@@ -1,5 +1,7 @@
 module GeohashHilbert
 
+export encode, decode, decode_exactly, rectangle, neighbours
+
 "Using Base.ImmutableDict in place of Dict for `ORDERING` and
 `HILBERT_RECURSION` seems to provide a ~2x performance gain. Strangely,
 there's not a simple constructor taking a Dict to an ImmutableDict. So,
@@ -95,9 +97,17 @@ function str_to_int(s::AbstractString, bits_per_char = 2)
 end
 
 """
-Encode a lon-lat as a geohash. Higher `precision` leads to a finer grained encoding;
-in particular the unwrapped lon-lat plane is divided into `4^precision` squares on a side.
-Thus the number of bits used is `2 * precision`.
+    encode(lon, lat, precision, bits_per_char = 2)
+
+Encode a longitude-latitude pair as a geohash string. The length of the resulting geohash
+is `precision`, so higher `precision` gives a finer grained encoding. Return the geohash
+string.
+
+# Arguments
+- `lon::Real`: longitude of point to encode. Must be in [-180,180].
+- `lat::Real`: latitude of point to encode. Must be in [-90,90].
+- `precision::Integer`: precision of returned geohash. Must be positive.
+- `bits_per_char ∈ [2,4,6]`: how many bits of information each character encodes.
 """
 function encode(lon, lat, precision, bits_per_char = 2)
     @assert -90 <= lat <= 90
@@ -234,8 +244,14 @@ end
     return UpperRight
 end
 
-"Given a `geohash` string at a specified `bits_per_char`, return the coordinates of the
-corresponding geohash cell's center as a tuple `(lon, lat)`."
+"""
+    decode(geohash, bits_per_char = 2)
+
+Given a `geohash` string at a specified `bits_per_char`, return the coordinates of the
+corresponding geohash cell's center as a tuple `(lon, lat)`.
+
+See also: [`decode_exactly`](@ref)
+"""
 function decode(geohash, bits_per_char = 2)
     precision = length(geohash)
     curve_spot = str_to_int(geohash)
@@ -244,9 +260,17 @@ function decode(geohash, bits_per_char = 2)
     return xy_to_lonlat(x, y, n)
 end
 
+"""
+    decode_exactly(geohash, bits_per_char)
+
+Given a `geohash` string at a specified `bits_per_char`, return the coordinates of the
+corresponding geohash cell's center and the error margins as a tuple
+`(lon, lat, lon_err, lat_err)`. That is, each point in the corresponding cell has
+longitude within `lon` ± `lon_err` and likewise for latitude.
+
+See also: [`rectangle`](@ref)
+"""
 function decode_exactly(geohash, bits_per_char = 2)
-    # currently only 2 bits per char supported
-    @assert bits_per_char == 2
     precision = length(geohash)
     lon, lat = decode(geohash, bits_per_char)
     lon_rect_size, lat_rect_size = cell_size_deg(precision, bits_per_char)
@@ -261,7 +285,15 @@ function cell_size_deg(precision, bits_per_char = 2)
     return 360 / n, 180 / n
 end
 
-function neighbours(geohash, bits_per_char)
+"""
+    neighbours(geohash, bits_per_char = 2)
+
+Compute the geohashes of the cells neighboring the specified geohash cell. Return a
+dictionary keyed by "north", "north-east", "east", etc. and with values the geohash string
+of the corresponding adjacent cell at the same precision and bits per character. Note that
+cells near the poles will have only five neighbors.
+"""
+function neighbours(geohash, bits_per_char = 2)
     lon, lat, lon_err, lat_err = decode_exactly(geohash, bits_per_char)
     prec = length(geohash)
 
@@ -299,7 +331,13 @@ function neighbours(geohash, bits_per_char)
 
 end
 
-function rectangle(geohash, bits_per_char)
+"""
+    rectangle(geohash, bits_per_char = 2)
+
+Return a GeoJSON Dict that encodes as a Feature the rectangle associated with a given
+`geohash`.
+"""
+function rectangle(geohash, bits_per_char = 2)
 
     lon, lat, lon_err, lat_err = decode_exactly(geohash, bits_per_char)
 
