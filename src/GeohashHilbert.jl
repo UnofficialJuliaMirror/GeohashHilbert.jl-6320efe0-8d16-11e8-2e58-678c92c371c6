@@ -108,15 +108,31 @@ string.
 - `lat::Real`: latitude of point to encode. Must be in [-90,90].
 - `precision::Integer`: precision of returned geohash. Must be positive.
 - `bits_per_char ∈ [2,4,6]`: how many bits of information each character encodes.
+
+!!! note
+    To avoid overflow in machine arithmetic, `precision * bits_per_char` must be <= 62.
+    This still allows meter-level granularity. If your use case requires sub-meter
+    granularity, you may wish to reconsider using longitude-latitude coordinates.
 """
-function encode(lon, lat, precision, bits_per_char = 2)
-    @assert -90 <= lat <= 90
-    @assert -180 <= lon <= 180
+function encode(lon, lat, precision::Integer, bits_per_char = 2)
+    -90 <= lat <= 90 || throw(DomainError(lat, "`lat` must be between ± 90"))
+    -180 <= lon <= 180 || throw(DomainError(lon, "`lon` must be between ± 180"))
+    precision > 0 || throw(DomainError(precision, "`precision` must be greater than 0."))
+    # Limits of 64 bit signed integer arithmetic mean we have to limit precision to avoid
+    # overflow. We could mitigate this by a bit by using unsigned integers and completely
+    # at significant performance cost by using BigInt.
+    if precision * bits_per_char > 62
+        throw(DomainError(
+            (precision, bits_per_char),
+            "`precision * bits_per_char` must be <= 62."
+        ))
+    end
+
     encode_bits = precision * bits_per_char
     n = 2^(encode_bits ÷ 2)
     x, y = lonlat_to_xy(lon, lat, n)
     curve_spot = xy_to_int(x, y, n)
-    return int_to_str(curve_spot, precision)
+    return int_to_str(curve_spot, precision, bits_per_char)
 end
 
 """
@@ -152,8 +168,8 @@ and n^2 - 1 (the last square along the Hilbert curve, namely the lower-right gri
 inclusive.
 """
 function xy_to_int(x::Int, y::Int, n::Int)
-    @assert 1 <= x <= n
-    @assert 1 <= y <= n
+    1 <= x <= n || throw(DomainError((x, y, n), "x must be in [1,n]"))
+    1 <= y <= n || throw(DomainError((x, y, n), "y must be in [1,n]"))
 
     cur_orientation = UDown
     cur_quadrant_size = n ÷ 2
@@ -227,8 +243,10 @@ end
 # find the quadrant (eg UpperLeft) of the corresponding index
 # there's probably a small absolute but large relative efficiency gain
 # to be had by making a REVERSE_ORDERING dict or using a different data structure
-function find_quadrant(quad_index, orientation)::Quadrant
-    @assert 1 <= quad_index <= 4
+function find_quadrant(quad_index, orientation::HilbertOrientation)::Quadrant
+    if !(1 <= quad_index <= 4)
+        throw(DomainError(quad_index, "quad_index must be in [1,2,3,4]"))
+    end
     for quad in instances(Quadrant)
         if ORDERING[orientation][quad] == quad_index
             return quad
@@ -254,7 +272,7 @@ See also: [`decode_exactly`](@ref)
 """
 function decode(geohash, bits_per_char = 2)
     precision = length(geohash)
-    curve_spot = str_to_int(geohash)
+    curve_spot = str_to_int(geohash, bits_per_char)
     n = 2^(precision * bits_per_char ÷ 2)
     x, y = int_to_xy(curve_spot, n)
     return xy_to_lonlat(x, y, n)

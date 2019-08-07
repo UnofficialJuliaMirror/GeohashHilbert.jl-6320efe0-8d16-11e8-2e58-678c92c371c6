@@ -1,14 +1,14 @@
 using GeohashHilbert
 using Random
 using Test
+using CSV
 
 const GHH = GeohashHilbert
 const ALL_BITS_PER_CHAR = [2, 4, 6]
 
 randlat() = -90 + 180 * rand()
 randlon() = -180 + 360 * rand()
-randprec() = rand(1:20)
-randgeohash(n, bits_per_char = 2) = String(rand('0':'3', n))
+randprec() = rand(1:10)
 
 # converting between int/string and back should reproduce starting values
 function test_int_str_conversion()
@@ -64,28 +64,40 @@ end
 # Make sure we match Python geohash hilbert on encoding, particularly on edges
 # and corners of cells.
 function test_match_python_encode(bits_per_char = 2)
-    # each item is (lon, lat, prec, python encode at 2 bits_per_char)
-    # this covers a variety of nasty edge cases, boundaries between cells,
-    # and points in each quadrant of the world (wrt equator and prime meridian)
-    llp_g = [
-        [90, 47, 2, "22"],
-        [90, 45, 2, "22"],
-        [0, 90, 6, "211111"],
-        [0, -90, 6, "322222"],
-        [-180, 47, 5, "11000"],
-        [180, 47, 5, "22333"],
-        [180, 90, 7, "2222222"],
-        [13, 47, 21, "210032131130033230313"],
-        [-13, 47, 21, "123301202203300103020"],
-        [13, -47, 21, "321103020023322121020"],
-        [-13, -47, 21, "012230313310011212313"]
-    ]
-    for tup in llp_g
-        @test GHH.encode(tup[1:3]...) == tup[4]
+    # python_hashes.csv has columns lon, lat, prec, bpc [bits per char], geohash
+    typedict = Dict(
+        :lon => Float64,
+        :lat => Float64,
+        :prec => Int,
+        :bpc => Int,
+        :geohash => String
+    )
+    python_hashes = CSV.File(joinpath(@__DIR__, "python_hashes.csv"); types = typedict)
+    for row in python_hashes
+        julia_hash = GHH.encode(row.lon, row.lat, row.prec, row.bpc)
+        @test julia_hash == row.geohash
     end
     return nothing
 end
 
+# Illegal arguments should raise exceptions.
+# This is not an exhaustive list of all kinds of illegal args.
+function test_illegal_arguments()
+    @test_throws Exception GHH.int_to_str(5, 5, 3) # 3 illegal bits per char
+    @test_throws Exception GHH.str_to_int("hey there", 2) # illegal characters
+    @test_throws Exception GHH.str_to_int("0123123", 3) # illegal bits per char
+    @test_throws DomainError encode(-200, 0, 4, 4) # illegal longitude
+    @test_throws DomainError encode(0, 100, 4, 4) # illegal latitude
+    @test_throws DomainError encode(0, 0, 0, 4) # illegal precision
+    @test_throws DomainError encode(0, 0, 11, 6) # too much precision
+    @test_throws Exception encode(0, 0, 2, -1) # illegal bits per char
+    @test_throws DomainError GHH.int_to_xy(16, 4) # first argument is too large
+    @test_throws DomainError GHH.find_quadrant(5, GHH.ULeft) # illegal quadrant
+    @test_throws DomainError GHH.xy_to_int(5, 1, 4) # x too large
+    @test_throws DomainError GHH.xy_to_int(2, 0, 4) # y too small
+end
+
+println("Greetings tester; your test will now begin.")
 Random.seed!(47)
 test_int_str_conversion()
 test_int_xy_conversion()
@@ -93,4 +105,5 @@ for bpc in ALL_BITS_PER_CHAR
     test_cell_centers_encode_decode(bpc)
 end
 test_match_python_encode()
-println("Great job!")
+test_illegal_arguments()
+println("Great job, you passed!")
