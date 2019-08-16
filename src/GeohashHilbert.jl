@@ -104,8 +104,8 @@ is `precision`, so higher `precision` gives a finer grained encoding. Return the
 string.
 
 # Arguments
-- `lon::Real`: longitude of point to encode. Must be in [-180,180].
-- `lat::Real`: latitude of point to encode. Must be in [-90,90].
+- `lon::Real`: longitude in degrees of point to encode. Must be in [-180,180].
+- `lat::Real`: latitude in degrees of point to encode. Must be in [-90,90].
 - `precision::Integer`: precision of returned geohash. Must be positive.
 - `bits_per_char ∈ [2,4,6]`: how many bits of information each character encodes.
 
